@@ -1,36 +1,47 @@
 {
-  description = "default rust env";
-
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    rust-overlay = {
-      url = "github:oxalica/rust-overlay";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
-    flake-utils.url = "github:numtide/flake-utils";
+    flake-parts.url = "github:hercules-ci/flake-parts";
+    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay.inputs.nixpkgs.follows = "nixpkgs";
   };
 
-  outputs = {
-    self,
-    nixpkgs,
-    flake-utils,
-    rust-overlay,
-    ...
-  }:
-    flake-utils.lib.eachDefaultSystem (
-      system: let
-        overlays = [(import rust-overlay)];
-        pkgs = import nixpkgs {inherit system overlays;};
-        rustVersion = let
-          toolchain_file = ./rust-toolchain;
-        in
-          if builtins.pathExists toolchain_file
-          then pkgs.rust-bin.fromRustupToolchainFile toolchain_file
-          else pkgs.rust-bin.stable.latest.default;
+  outputs = inputs:
+    inputs.flake-parts.lib.mkFlake {inherit inputs;} {
+      systems = ["x86_64-linux"];
+      perSystem = {
+        config,
+        self',
+        pkgs,
+        lib,
+        system,
+        ...
+      }: let
+        runtimeDeps = with pkgs; [];
+        buildDeps = with pkgs; [];
+        devDeps = with pkgs; [];
+
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        msrv = cargoToml.package.rust-version;
+        mkDevShell = rustc:
+          pkgs.mkShell {
+            RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
+            buildInputs = runtimeDeps;
+            nativeBuildInputs = buildDeps ++ devDeps ++ [rustc];
+          };
       in {
-        devShell = pkgs.mkShell {
-          buildInputs = [(rustVersion.override {extensions = ["rust-src"];})];
+        _module.args.pkgs = import inputs.nixpkgs {
+          inherit system;
+          overlays = [(import inputs.rust-overlay)];
         };
-      }
-    );
+
+        devShells.nightly =
+          mkDevShell (pkgs.rust-bin.selectLatestNightlyWith
+            (toolchain: toolchain.default));
+        devShells.stable = mkDevShell pkgs.rust-bin.stable.latest.default;
+        devShells.msrv = mkDevShell pkgs.rust-bin.stable.${msrv}.default;
+
+        devShells.default = self'.devShells.stable;
+      };
+    };
 }
