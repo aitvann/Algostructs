@@ -47,13 +47,14 @@ mod heap {
     use std::{cmp, collections::BinaryHeap};
 
     pub fn k_smallest_pairs(nums1: &[i32], nums2: &[i32], k: i32) -> Vec<Vec<i32>> {
-        let mut heap = BinaryHeap::new();
+        let mut heap = nums1
+            .iter()
+            .enumerate()
+            .map(|(i, &num1)| (num1 + nums2[0], i, 0))
+            .map(cmp::Reverse)
+            .collect::<BinaryHeap<_>>();
+
         let mut res = vec![];
-
-        for (i, &num1) in nums1.iter().enumerate() {
-            heap.push(cmp::Reverse((num1 + nums2[0], i, 0)));
-        }
-
         while res.len() < k as usize {
             if let Some(cmp::Reverse((_sum, i, j))) = heap.pop() {
                 res.push(vec![nums1[i], nums2[j]]);
