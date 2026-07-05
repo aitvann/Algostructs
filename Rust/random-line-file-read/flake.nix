@@ -27,7 +27,17 @@
           cargo-show-asm
 
           # Editor tools
-          taplo
+          tombi
+
+          codebook
+
+          marksman
+          efm-langserver
+          pandoc
+          markdownlint-cli2
+
+          nixd
+          alejandra
         ];
 
         cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
